@@ -1,0 +1,163 @@
+#include <Arduino.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+
+#define DHTPIN 4
+#define DHTTYPE DHT22
+
+const char* mqtt_id = "Sala 09";
+const char* password = "Info@134";
+const char* mqtt_server = "broker.hivemq.com";
+const int mqtt_port = 1883;
+const char* mqtt_topic_pub = "senai134/magicduel/controles";
+const char* mqtt_topic_sub = "senai134/magicduel/controles";
+
+bool acaoF = 0; // Ação para fogo (temperatura)
+bool acaoG = 0; // Ação para gelo (umidade)
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+DHT dht(DHTPIN, DHTTYPE);
+
+void callback(char*, byte*, unsigned int);
+void mqttConnect(void);
+void conectaWiFi();
+
+void setup() {
+  Serial.begin(115200);
+
+  conectaWiFi();
+  WiFi.begin(mqtt_id, password);
+  dht.begin();
+
+  client.setServer(mqtt_server, mqtt_port);
+  while (!client.connected()) {
+    if (client.connect("ESP32Publisher")) {
+      Serial.println("Conectado ao broker MQTT");
+    } else {
+      delay(1000);
+    }
+  }
+
+  client.setCallback(callback);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("WiFi conectado");
+
+  client.subscribe(mqtt_topic_sub);
+}
+
+void loop() {
+  delay(5000);
+
+  if (!client.connected())
+    mqttConnect();
+
+  client.loop();
+
+  static unsigned long tempoAnterior = 0;
+  unsigned long agora = millis();
+  static bool gelo = 0;
+
+  JsonDocument doc;
+  String mensagem;
+
+  if (agora - tempoAnterior > 3000) {
+    gelo = !gelo;
+    doc["gelo"] = gelo;
+    serializeJson(doc, mensagem);
+    client.publish(mqtt_topic_pub, mensagem.c_str());
+    tempoAnterior = agora;
+  }
+
+  // Envia temperatura se açãoF (fogo) ativado
+  if (acaoF) {
+    float temperatura = dht.readTemperature();
+    delay(3000);
+    if (!isnan(temperatura)) {
+      StaticJsonDocument<128> doc;
+      doc["temperatura"] = temperatura;
+      String jsonStr;
+      serializeJson(doc, jsonStr);
+      client.publish(mqtt_topic_pub, jsonStr.c_str());
+      Serial.println("Temperatura enviada: " + jsonStr);
+    } else {
+      Serial.println("Erro ao ler temperatura");
+    }
+    acaoF = false;
+  }
+
+  // Envia umidade se açãoG (gelo) ativado
+  if (acaoG) {
+    float umidade = dht.readHumidity();
+    delay(3000);
+    if (!isnan(umidade)) {
+      StaticJsonDocument<128> doc;
+      doc["umidade"] = umidade;
+      String jsonStr;
+      serializeJson(doc, jsonStr);
+      client.publish(mqtt_topic_pub, jsonStr.c_str());
+      Serial.println("Umidade enviada: " + jsonStr);
+    } else {
+      Serial.println("Erro ao ler umidade");
+    }
+    acaoG = false;
+  }
+
+  delay(100);
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.printf("mensagem recebida em %s: ", topic);
+  String mensagem = "";
+  for (unsigned int i = 0; i < length; i++) {
+    char c = (char)payload[i];
+    mensagem += c;
+  }
+  Serial.println(mensagem);
+
+  // Decodifica JSON recebido
+  StaticJsonDocument<256> doc;
+  DeserializationError erro = deserializeJson(doc, mensagem);
+  if (erro) {
+    Serial.println("Erro ao decodificar JSON");
+    return;
+  }
+
+  // Verifica comandos recebidos
+  if (doc.containsKey("açãoF")) {
+    acaoF = doc["açãoF"];
+  }
+  if (doc.containsKey("açãoG")) {
+    acaoG = doc["açãoG"];
+  }
+}
+
+void mqttConnect() {
+  while (!client.connected()) {
+    Serial.println("Conectando ao MQTT...");
+    if (client.connect(mqtt_id)) {
+      Serial.println("Conectado com sucesso");
+    } else {
+      Serial.print("Falha, rc=");
+      Serial.println(client.state());
+      Serial.println("Tentando novamente em 5 segundos");
+      delay(5000);
+    }
+  }
+}
+
+void conectaWiFi() {
+  WiFi.begin(mqtt_id, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("Conectado ao WiFi");
+}
