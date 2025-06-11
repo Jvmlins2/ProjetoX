@@ -11,9 +11,10 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 void leituraBotoes(bool leitura[5]);
 int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD, bool botaoE);
+// Declaração da função que fará a leitura com debounce de todos os 5 botões
 
 void setup()
-{
+{ // Configura dos pinos como entrada com resistor interno pull-up
   pinMode(PIN_A, INPUT_PULLUP);
   pinMode(PIN_B, INPUT_PULLUP);
   pinMode(PIN_C, INPUT_PULLUP);
@@ -30,9 +31,10 @@ void setup()
 
 void loop()
 {
-  bool botao[5];
+  bool botao[5];  // Cria um array de 5 valores booleanos para guardar o estado de cada botão
   static int golpes;
-  leituraBotoes(botao);
+  leituraBotoes(botao);   // Chama a função que faz a leitura de cada botão com debounce e preenche o array
+
 
   bool A = botao[0];  if(A) Serial.println("A");
   bool B = botao[1];  if(B) Serial.println("B");
@@ -103,14 +105,15 @@ Serial.println(selecao);
   return selecao;
 }
 
+// Função para ler cada botão com debouncing
 void leituraBotoes(bool leitura[5])
 {
   unsigned int tempo = millis();
   static bool verdadeiro = 1;
 
   if (tempo > 100)
-  {
-    //? Botão A
+  { // Só começa a processar depois dos primeiros 100 ms de boot, para dar tempo ao sistema
+    //? ============LÊ BOTÃO A=============== 
     bool estadoA = digitalRead(PIN_A);
     static bool estadoAnteriorA = 1;
     static unsigned int tempoAnteriorA;
@@ -133,7 +136,7 @@ void leituraBotoes(bool leitura[5])
     }
     estadoAnteriorA = estadoA;
 
-    //? Botão B
+    //? ============LÊ BOTÃO B=====================
     bool estadoB = digitalRead(PIN_B);
     static bool estadoAnteriorB = 1;
     static unsigned int tempoAnteriorB;
@@ -155,7 +158,7 @@ void leituraBotoes(bool leitura[5])
     }
     estadoAnteriorB = estadoB;
 
-    //? Botão C
+    //? ============LÊ BOTÃO C=====================
     bool estadoC = digitalRead(PIN_C);
     static bool estadoAnteriorC = 1;
     static unsigned int tempoAnteriorC;
@@ -177,7 +180,7 @@ void leituraBotoes(bool leitura[5])
       }
     estadoAnteriorC = estadoC;
 
-    //? Botão D
+    //? ============LÊ BOTÃO D=====================
     bool estadoD = digitalRead(PIN_D);
     static bool estadoAnteriorD = 1;
     static unsigned int tempoAnteriorD;
@@ -199,7 +202,7 @@ void leituraBotoes(bool leitura[5])
     }
     estadoAnteriorD = estadoD;
 
-    //? Botão E
+    //? ============LÊ BOTÃO E=====================
     bool estadoE = digitalRead(PIN_E);
     static bool estadoAnteriorE = 1;
     static unsigned int tempoAnteriorE;
