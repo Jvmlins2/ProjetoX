@@ -22,8 +22,8 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 #define PIN_A 2
 #define PIN_B 4
-#define PIN_C 18
-#define PIN_D 19
+#define PIN_C 5
+#define PIN_D 18
 #define PIN_E 25
 
 #define DHTPIN 5
