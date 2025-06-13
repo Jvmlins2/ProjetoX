@@ -4,7 +4,7 @@
 #include "internet.h"
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
-
+#include <DHT.h>
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -18,7 +18,6 @@ const char *mqtt_topic_pub = "senai134/magicduel/controles";
 void callback(char *, byte *, unsigned int);
 void mqttConnect(void);
 
-
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 #define PIN_A 2
@@ -27,6 +26,40 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 #define PIN_D 19
 #define PIN_E 25
 
+#define DHTPIN 5
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+
+//*variáveis para funcao DHTtemperatura
+float temperatura = 0;
+
+//*variáveis para funcao DHTumidade
+float umidade = 0;
+
+//*variáveis de tempo
+int tempoInteracao = 4000;
+
+//*variáveis para funcao setupDHT
+float setupUmidade = 0;
+float setupTemperatura = 0;
+
+//*variáveis para funcao ataqueFogo
+int forcaAtaqueFogo = 0;
+
+//*variáveis para funcao ataqueGelo
+int forcaAtaqueGelo = 0;
+
+//**variáveis para funcao trava
+static bool acaoPlayers = 1;
+
+//!-------Funcoes
+
+void DHTtemperatura();
+void DHTumidade();
+void setupDHT();
+void ataqueGelo();
+void ataqueFogo();
+void trava();
 void leituraBotoes(bool leitura[5]);
 int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD);
 void ataques(int magia, bool botaoB, bool D);
@@ -45,39 +78,53 @@ void setup()
   lcd.backlight();
   lcd.home();
   lcd.print(">");
+  lcd.setCursor(1,0);
+  lcd.print("Fogo");
 
   conectaWiFi();
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
+
+  setupDHT();
 }
 
 void loop()
 {
-  heckWiFi();
+  checkWiFi();
 
-  if (!client.connected())
-    mqttConnect();
+  /*if (!client.connected())
+    mqttConnect();*/
 
   client.loop();
-
 
   bool botao[5];
   static int golpes;
   leituraBotoes(botao);
 
-  bool A = botao[0];  if(A) Serial.println("A");//! sobe
-  bool B = botao[1];  if(B) Serial.println("B");//! voltar
-  bool C = botao[2];  if(C) Serial.println("C");//! descer
-  bool D = botao[3];  if(D) Serial.println("D");//! avancar
-  bool E = botao[4];  if(E) Serial.println("E");//* inderterminado
+  bool A = botao[0];
+  if (A)
+    Serial.println("A"); //! sobe
+  bool B = botao[1];
+  if (B)
+    Serial.println("B"); //! voltar
+  bool C = botao[2];
+  if (C)
+    Serial.println("C"); //! descer
+  bool D = botao[3];
+  if (D)
+    Serial.println("D"); //! avancar
+  bool E = botao[4];
+  if (E)
+    Serial.println("E"); //* inderterminado
 
   //* As magias e a selecao sao dividas de 0 a 3
   golpes = selecaoSerial(A, B, C, D);
   ataques(golpes, B, D);
+  trava();
 }
 
-
+//*===========================================================================================================
 
 void leituraBotoes(bool leitura[5])
 {
@@ -137,20 +184,20 @@ void leituraBotoes(bool leitura[5])
     static unsigned int tempoAnteriorC;
     static bool acaoC = 1;
     if (estadoC != estadoAnteriorC && estadoC == 0)
-        tempoAnteriorC = tempo;
-      if (tempo - tempoAnteriorC > 100)
+      tempoAnteriorC = tempo;
+    if (tempo - tempoAnteriorC > 100)
+    {
+      if (acaoC != estadoC)
       {
-        if (acaoC != estadoC)
-        {
-          if (estadoC == 0)
-            leitura[2] = 1;
-        }
-        else
-        {
-          leitura[2] = 0;
-        }
-        acaoC = estadoC;
+        if (estadoC == 0)
+          leitura[2] = 1;
       }
+      else
+      {
+        leitura[2] = 0;
+      }
+      acaoC = estadoC;
+    }
     estadoAnteriorC = estadoC;
 
     //? Botão D
@@ -199,6 +246,8 @@ void leituraBotoes(bool leitura[5])
   }
 }
 
+//*===========================================================================================================
+
 int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD)
 {
   //? Selecao
@@ -206,116 +255,124 @@ int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD)
   static int selecaoAnterior;
   static bool agir;
 
-  if(botaoD)
-  agir = true;
-  if(botaoB)
-  agir = false;
+  if (botaoD)
+    agir = true;
+  if (botaoB)
+    agir = false;
 
-  if(!agir)
-{
-  lcd.clear();
-  if (botaoA)
-    selecao--;
-  if (botaoC)
-    selecao++;
+  if (!agir)
+  {
+    if (botaoA)
+      selecao--;
+    if (botaoC)
+      selecao++;
 
-  if (selecao > 3)
-    selecao = 0;
-  if (selecao < 0)
-    selecao = 3;
+    if (selecao > 3)
+      selecao = 0;
+    if (selecao < 0)
+      selecao = 3;
 
     //* Impedir que pule 3 a 1
-    if(selecao == 1 && selecaoAnterior == 3)
-    selecao = 2;
-    
+    if (selecao == 1 && selecaoAnterior == 3)
+      selecao = 2;
+
     selecaoAnterior = selecao;
 
-  if (selecao == 0)
-  {
-    lcd.home();
-    lcd.print(">");
-    lcd.setCursor(0, 3);
-    lcd.print(" ");
-    lcd.setCursor(0, 1);
-    lcd.print(" ");
+    if (selecao == 0)
+    {
+      lcd.home();
+      lcd.print(">");
+      lcd.setCursor(0, 3);
+      lcd.print(" ");
+      lcd.setCursor(0, 1);
+      lcd.print(" ");
+    }
+    if (selecao == 1)
+    {
+      lcd.setCursor(0, 1);
+      lcd.print(">");
+      lcd.setCursor(0, 0);
+      lcd.print(" ");
+      lcd.setCursor(0, 2);
+      lcd.print(" ");
+    }
+    if (selecao == 2)
+    {
+      lcd.setCursor(0, 2);
+      lcd.print(">");
+      lcd.setCursor(0, 1);
+      lcd.print(" ");
+      lcd.setCursor(0, 3);
+      lcd.print(" ");
+    }
+    if (selecao == 3)
+    {
+      lcd.setCursor(0, 3);
+      lcd.print(">");
+      lcd.setCursor(0, 2);
+      lcd.print(" ");
+      lcd.setCursor(0, 0);
+      lcd.print(" ");
+    }
   }
-  if (selecao == 1)
-  {
-    lcd.setCursor(0, 1);
-    lcd.print(">");
-    lcd.setCursor(0, 0);
-    lcd.print(" ");
-    lcd.setCursor(0, 2);
-    lcd.print(" ");
-  }
-  if (selecao == 2)
-  {
-    lcd.setCursor(0, 2);
-    lcd.print(">");
-    lcd.setCursor(0, 1);
-    lcd.print(" ");
-    lcd.setCursor(0, 3);
-    lcd.print(" ");
-  }
-  if (selecao == 3)
-  {
-    lcd.setCursor(0, 3);
-    lcd.print(">");
-    lcd.setCursor(0, 2);
-    lcd.print(" ");
-    lcd.setCursor(0, 0);
-    lcd.print(" ");
-  }
-}
   return selecao;
 }
 
+//*===========================================================================================================
+
 void ataques(int magia, bool botaoB, bool botaoD)
 {
-  if(magia == 0)
+  if (magia == 0)
   {
-    if(botaoD == 1)
+    if (botaoD == 1)
     {
-    Serial.println("Magia 1");//*golpe
-    lcd.clear();
+      acaoPlayers = 0;
+      DHTtemperatura();
+      ataqueFogo();
     }
-    if(botaoB);
-    //volta a selecao
+    if (botaoB)
+      ;
+    // volta a selecao
   }
-  if(magia == 1)
+  if (magia == 1)
   {
-    if(botaoD)
+    if (botaoD)
     {
-       Serial.println("Magia 2");//*golpe
-       lcd.clear();
+      acaoPlayers = 0;
+      Serial.println("Magia 2"); //*golpe
+      
     }
 
-    if(botaoB);
-    //volta a selecao
+    if (botaoB)
+      ;
+    // volta a selecao
   }
-  if(magia == 2)
+  if (magia == 2)
   {
-    if(botaoD)
+    if (botaoD)
     {
-       Serial.println("Magia 3");//*golpe
-       lcd.clear();
+      Serial.println("Magia 3"); //*golpe
+      lcd.clear();
     }
 
-    if(botaoB);
-    //volta a selecao
+    if (botaoB)
+      ;
+    // volta a selecao
   }
-  if(magia == 3)
+  if (magia == 3)
   {
-    if(botaoD)
+    if (botaoD)
     {
-       Serial.println("Magia 4");//*golpe
-       lcd.clear();
+      Serial.println("Magia 4"); //*golpe
+      lcd.clear();
     }
 
-    if(botaoB);
-    //volta a selecao
+    if (botaoB)
+      ;
+    // volta a selecao
   }
 }
+
 //*===========================================================================================================
 
 void callback(char *topic, byte *payload, unsigned int length)
@@ -329,7 +386,17 @@ void callback(char *topic, byte *payload, unsigned int length)
     mensagem += c;
   }
   Serial.println(mensagem);
+
+   JsonDocument doc;
+   deserializeJson(doc, mensagem);
+
+   if (!doc["trava"].isNull())
+   {
+     acaoPlayers = doc["trava"];
+   }
 }
+
+//*===========================================================================================================
 
 void mqttConnect()
 {
@@ -351,4 +418,101 @@ void mqttConnect()
       delay(5000);
     }
   }
+}
+
+//*===========================================================================================================
+
+void ataqueFogo()
+{
+  if (temperatura >= (setupTemperatura * 1.25))
+  {
+    forcaAtaqueFogo = 2;
+  }
+  else if (temperatura <= (setupTemperatura * 1.24) && temperatura >= (setupTemperatura * 1.15))
+  {
+    forcaAtaqueFogo = 1;
+  }
+  else
+  {
+    forcaAtaqueFogo = 0;
+  }
+}
+
+//*===========================================================================================================
+
+void ataqueGelo()
+{
+  if (umidade >= (setupUmidade * 1.52))
+  {
+    forcaAtaqueGelo = 2;
+  }
+  else if (umidade <= (setupUmidade * 1.57) && umidade >= (setupUmidade * 1.35))
+  {
+    forcaAtaqueGelo = 1;
+  }
+  else
+  {
+    forcaAtaqueGelo = 0;
+  }
+}
+
+//*===========================================================================================================
+
+void setupDHT()
+{
+  delay(2000);
+  setupTemperatura = dht.readTemperature();
+  setupUmidade = dht.readHumidity();
+}
+
+//*===========================================================================================================
+
+void DHTumidade()
+{
+  unsigned long ultimoEnvio = 0;
+  unsigned long agora = millis();
+  if (agora - ultimoEnvio >= tempoInteracao)
+  {
+    umidade = dht.readHumidity();
+    ultimoEnvio = agora;
+  }
+}
+
+//*===========================================================================================================
+
+void DHTtemperatura()
+{
+  unsigned long ultimoEnvio = 0;
+  unsigned long agora = millis();
+  if (agora - ultimoEnvio >= tempoInteracao)
+  {
+    temperatura = dht.readTemperature();
+    ultimoEnvio = agora;
+  }
+}
+
+//*===========================================================================================================
+
+void trava()
+{
+
+  while (!acaoPlayers)
+  {
+    static bool clear = 1;
+    if (clear)
+    {
+      lcd.clear();
+      clear = 0;
+    }
+    lcd.setCursor(5, 1);
+    lcd.print("Preparece");
+    lcd.setCursor(0, 2);
+    lcd.print("Esperando o oponente");
+
+  }
+}
+
+void enviarAtaqSelecionado ()
+{
+
 }
