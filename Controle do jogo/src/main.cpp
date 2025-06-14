@@ -37,7 +37,7 @@ float temperatura = 0;
 float umidade = 0;
 
 //*variáveis de tempo
-int tempoInteracao = 4000;
+int tempoInteracao = 5000;
 
 //*variáveis para funcao setupDHT
 float setupUmidade = 0;
@@ -49,11 +49,16 @@ int forcaAtaqueFogo = 0;
 //*variáveis para funcao ataqueGelo
 int forcaAtaqueGelo = 0;
 
-//**variáveis para funcao trava
+//*variáveis para funcao trava
 static bool acaoPlayers = 1;
+
+//*variáveis para ataques
+int qualMagia = 0;
 
 //!-------Funcoes
 
+void telaInformandoForcaAtaque();
+void telaInteracaoSersores();
 void DHTtemperatura();
 void DHTumidade();
 void setupDHT();
@@ -78,7 +83,7 @@ void setup()
   lcd.backlight();
   lcd.home();
   lcd.print(">");
-  lcd.setCursor(1,0);
+  lcd.setCursor(1, 0);
   lcd.print("Fogo");
 
   conectaWiFi();
@@ -93,8 +98,8 @@ void loop()
 {
   checkWiFi();
 
-  /*if (!client.connected())
-    mqttConnect();*/
+  if (!client.connected())
+    mqttConnect();
 
   client.loop();
 
@@ -326,9 +331,12 @@ void ataques(int magia, bool botaoB, bool botaoD)
   {
     if (botaoD == 1)
     {
-      acaoPlayers = 0;
+      qualMagia = 0;
+      telaInteracaoSersores();
+      delay(5000);
       DHTtemperatura();
       ataqueFogo();
+      telaInformandoForcaAtaque();
     }
     if (botaoB)
       ;
@@ -340,7 +348,6 @@ void ataques(int magia, bool botaoB, bool botaoD)
     {
       acaoPlayers = 0;
       Serial.println("Magia 2"); //*golpe
-      
     }
 
     if (botaoB)
@@ -387,13 +394,13 @@ void callback(char *topic, byte *payload, unsigned int length)
   }
   Serial.println(mensagem);
 
-   JsonDocument doc;
-   deserializeJson(doc, mensagem);
+  JsonDocument doc;
+  deserializeJson(doc, mensagem);
 
-   if (!doc["trava"].isNull())
-   {
-     acaoPlayers = doc["trava"];
-   }
+  if (!doc["trava"].isNull())
+  {
+    acaoPlayers = doc["trava"];
+  }
 }
 
 //*===========================================================================================================
@@ -469,7 +476,7 @@ void setupDHT()
 
 void DHTumidade()
 {
-  unsigned long ultimoEnvio = 0;
+  static unsigned long ultimoEnvio = 0;
   unsigned long agora = millis();
   if (agora - ultimoEnvio >= tempoInteracao)
   {
@@ -482,7 +489,7 @@ void DHTumidade()
 
 void DHTtemperatura()
 {
-  unsigned long ultimoEnvio = 0;
+  static unsigned long ultimoEnvio = 0;
   unsigned long agora = millis();
   if (agora - ultimoEnvio >= tempoInteracao)
   {
@@ -496,9 +503,9 @@ void DHTtemperatura()
 void trava()
 {
 
+  static bool clear = 1;
   while (!acaoPlayers)
   {
-    static bool clear = 1;
     if (clear)
     {
       lcd.clear();
@@ -508,11 +515,37 @@ void trava()
     lcd.print("Preparece");
     lcd.setCursor(0, 2);
     lcd.print("Esperando o oponente");
-
   }
+  clear = 1;
 }
 
-void enviarAtaqSelecionado ()
+void telaInteracaoSersores()
 {
 
+  static bool clear = 1;
+  if (clear)
+  {
+    lcd.clear();
+    clear = 0;
+  }
+  lcd.setCursor(5, 1);
+  lcd.print("Interaja");
+  lcd.setCursor(2, 2);
+  lcd.print("Com o sensor");
+  lcd.setCursor(3, 2);
+  lcd.print("Voce tem 5s");
+}
+
+void telaInformandoForcaAtaque()
+{
+  lcd.clear();
+  lcd.setCursor(1, 1);
+  lcd.print("Sua Pontuacao foi:");
+  if (qualMagia == 0)
+  {
+    lcd.setCursor(5, 2);
+    lcd.print(temperatura);
+    lcd.setCursor(9, 2);
+    lcd.print("C");
+  }
 }
