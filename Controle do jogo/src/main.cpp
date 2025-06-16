@@ -26,7 +26,7 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 #define PIN_D 18
 #define PIN_E 25
 
-#define DHTPIN 5
+#define DHTPIN 23
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -54,10 +54,11 @@ static bool acaoPlayers = 1;
 
 //*variáveis para ataques
 int qualMagia = 0;
+bool travaBotao = 0;
 
 //!-------Funcoes
 
-void telaInformandoForcaAtaque();
+void displaySetup();
 void telaInteracaoSersores();
 void DHTtemperatura();
 void DHTumidade();
@@ -68,6 +69,7 @@ void trava();
 void leituraBotoes(bool leitura[5]);
 int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD);
 void ataques(int magia, bool botaoB, bool D);
+bool aguardarSensor(unsigned long tempoEspera);
 
 void setup()
 {
@@ -79,24 +81,19 @@ void setup()
 
   Serial.begin(9600);
 
-  lcd.init();
-  lcd.backlight();
-  lcd.home();
-  lcd.print(">");
-  lcd.setCursor(1, 0);
-  lcd.print("Fogo");
+  setupDHT();
+
+  displaySetup();
 
   conectaWiFi();
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
-
-  setupDHT();
 }
 
 void loop()
 {
-  checkWiFi();
+  checkWiFi();    
 
   if (!client.connected())
     mqttConnect();
@@ -124,9 +121,11 @@ void loop()
     Serial.println("E"); //* inderterminado
 
   //* As magias e a selecao sao dividas de 0 a 3
-  golpes = selecaoSerial(A, B, C, D);
-  ataques(golpes, B, D);
-  trava();
+  if (!travaBotao)
+  {
+    golpes = selecaoSerial(A, B, C, D);
+    ataques(golpes, B, D);
+  }
 }
 
 //*===========================================================================================================
@@ -327,16 +326,24 @@ int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD)
 
 void ataques(int magia, bool botaoB, bool botaoD)
 {
+  static bool aguardando = false;
+
   if (magia == 0)
   {
-    if (botaoD == 1)
+    if (botaoD && !aguardando && !travaBotao)
     {
+      travaBotao = 1;
       qualMagia = 0;
-      telaInteracaoSersores();
-      delay(5000);
+      aguardando = true;
+    }
+    if (aguardando && aguardarSensor(5000))
+    {
       DHTtemperatura();
       ataqueFogo();
-      telaInformandoForcaAtaque();
+      trava();
+      displaySetup();
+      travaBotao = 0;
+      aguardando = false;
     }
     if (botaoB)
       ;
@@ -476,58 +483,56 @@ void setupDHT()
 
 void DHTumidade()
 {
-  static unsigned long ultimoEnvio = 0;
-  unsigned long agora = millis();
-  if (agora - ultimoEnvio >= tempoInteracao)
-  {
-    umidade = dht.readHumidity();
-    ultimoEnvio = agora;
-  }
+  umidade = dht.readHumidity();
 }
 
 //*===========================================================================================================
 
 void DHTtemperatura()
 {
-  static unsigned long ultimoEnvio = 0;
-  unsigned long agora = millis();
-  if (agora - ultimoEnvio >= tempoInteracao)
-  {
-    temperatura = dht.readTemperature();
-    ultimoEnvio = agora;
-  }
+  temperatura = dht.readTemperature();
 }
 
 //*===========================================================================================================
 
 void trava()
 {
-
-  static bool clear = 1;
+  static bool jaMostrouTexto = 0;
+  static bool clear = 0;
   while (!acaoPlayers)
   {
-    if (clear)
+    if (!clear)
     {
       lcd.clear();
-      clear = 0;
+      clear = 1;
     }
-    lcd.setCursor(5, 1);
-    lcd.print("Preparece");
-    lcd.setCursor(0, 2);
-    lcd.print("Esperando o oponente");
+    if (!jaMostrouTexto)
+    {
+      lcd.setCursor(1, 1);
+      lcd.print("Sua Pontuacao foi:");
+      if (qualMagia == 0)
+      {
+        lcd.setCursor(5, 2);
+        lcd.print(temperatura);
+        lcd.setCursor(9, 2);
+        lcd.print("C");
+      }
+      lcd.setCursor(0, 3);
+      lcd.print("Esperando o oponente");
+      jaMostrouTexto = 1;
+    }
   }
-  clear = 1;
+  jaMostrouTexto = 0;
+  clear = 0;
 }
+
+//*===========================================================================================================
 
 void telaInteracaoSersores()
 {
 
-  static bool clear = 1;
-  if (clear)
-  {
-    lcd.clear();
-    clear = 0;
-  }
+  lcd.clear();
+
   lcd.setCursor(5, 1);
   lcd.print("Interaja");
   lcd.setCursor(2, 2);
@@ -536,16 +541,38 @@ void telaInteracaoSersores()
   lcd.print("Voce tem 5s");
 }
 
-void telaInformandoForcaAtaque()
+//*===========================================================================================================
+
+void displaySetup()
 {
   lcd.clear();
-  lcd.setCursor(1, 1);
-  lcd.print("Sua Pontuacao foi:");
-  if (qualMagia == 0)
+  lcd.init();
+  lcd.backlight();
+  lcd.home();
+  lcd.print(">");
+  lcd.setCursor(1, 0);
+  lcd.print("Fogo");
+}
+
+//*===========================================================================================================
+
+bool aguardarSensor(unsigned long tempoEspera)
+{
+  static unsigned long inicio = 0;
+  static bool emEspera = false;
+
+  if (!emEspera)
   {
-    lcd.setCursor(5, 2);
-    lcd.print(temperatura);
-    lcd.setCursor(9, 2);
-    lcd.print("C");
+    inicio = millis();
+    emEspera = true;
+    telaInteracaoSersores();
   }
+
+  if (millis() - inicio >= tempoEspera)
+  {
+    emEspera = false;
+    return true;
+  }
+
+  return false;
 }
