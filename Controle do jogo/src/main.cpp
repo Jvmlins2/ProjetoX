@@ -118,7 +118,6 @@ void loop()
   bool D = botao[3];
   if (D)
     Serial.println("D"); //! avancar
-
   bool E = botao[4];
   if (E)
     Serial.println("E"); //* inderterminado
@@ -327,21 +326,29 @@ int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD)
 
 void ataques(int magia, bool botaoB, bool botaoD)
 {
-  static bool execucao, execucaoAnt;
+  static bool execucao;
+  static unsigned int tempoAnt = 0;
+  static bool afirma;
+  bool execucaoAnt;
+  unsigned int temporizador = millis();
 
-  if(botaoD)
-  execucao =1;
-  else 
-  execucao = 0;
- static bool afirma;
+  // Atualiza o estado de execução
+  execucao = botaoD;
 
-  if (execucao != execucaoAnt && execucao == 1)
-  afirma = 1;
+  // Verifica se houve mudança de estado e se passou tempo suficiente (5 segundos)
+  if (execucao != execucaoAnt && execucao == true && (temporizador - tempoAnt > 5000))
+  {
+    afirma = true;
+    tempoAnt = temporizador;
+  }
 
   else
-  afirma = 0;
+    afirma = false;
+  
 
- execucaoAnt = execucao;
+  // Atualiza o estado anterior
+  execucaoAnt = execucao;
+
   if (magia == 0)
   {
     if (afirma)
@@ -354,6 +361,7 @@ void ataques(int magia, bool botaoB, bool botaoD)
       telaInformandoForcaAtaque();
       // trava();
       displaySetup();
+      afirma = 0;
     }
     if (botaoD)
       ;
@@ -361,7 +369,7 @@ void ataques(int magia, bool botaoB, bool botaoD)
   }
   if (magia == 1)
   {
-    if (botaoD)
+    if (afirma)
     {
       acaoPlayers = 0;
       Serial.println("Magia 2"); //*golpe
@@ -373,7 +381,7 @@ void ataques(int magia, bool botaoB, bool botaoD)
   }
   if (magia == 2)
   {
-    if (botaoD)
+    if (afirma)
     {
       Serial.println("Magia 3"); //*golpe
       lcd.clear();
@@ -385,7 +393,7 @@ void ataques(int magia, bool botaoB, bool botaoD)
   }
   if (magia == 3)
   {
-    if (botaoD)
+    if (afirma)
     {
       Serial.println("Magia 4"); //*golpe
       lcd.clear();
@@ -582,7 +590,7 @@ bool aguardarSensor(unsigned long tempoEspera)
   {
     inicio = millis();
     emEspera = true;
-    telaInteracaoSersores(); 
+    telaInteracaoSersores();
   }
 
   if (millis() - inicio >= tempoEspera)
