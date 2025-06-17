@@ -118,6 +118,7 @@ void loop()
   bool D = botao[3];
   if (D)
     Serial.println("D"); //! avancar
+
   bool E = botao[4];
   if (E)
     Serial.println("E"); //* inderterminado
@@ -326,18 +327,24 @@ int selecaoSerial(bool botaoA, bool botaoB, bool botaoC, bool botaoD)
 
 void ataques(int magia, bool botaoB, bool botaoD)
 {
-  static bool execucao;
+  static bool execucao, execucaoAnt;
 
   if(botaoD)
   execucao =1;
   else 
   execucao = 0;
+ static bool afirma;
 
-  bool execucaoAnt = execucao;
+  if (execucao != execucaoAnt && execucao == 1)
+  afirma = 1;
 
+  else
+  afirma = 0;
+
+ execucaoAnt = execucao;
   if (magia == 0)
   {
-    if (execucao != execucaoAnt && execucao == 1)
+    if (afirma)
     {
       Serial.println("teste");
       qualMagia = 0;
