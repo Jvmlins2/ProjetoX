@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <LiquidCrystal_I2C.h>
 
+#define pinBotao 0  // Botão no pino digital 0
+
 WiFiClient espClient;
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -80,6 +82,8 @@ int danoRaio = 2;
 
 void setup()
 {
+  pinMode(pinBotao, INPUT_PULLUP); // Configura botão como entrada com pull-up interno
+
   Serial.begin(9600);
   lcd.init();
   lcd.backlight();
@@ -98,14 +102,17 @@ void setup()
 
 void loop()
 {
+  static bool botaoAnterior = HIGH;
+  bool botaoAtual = digitalRead(pinBotao);
+
 //*******************Condição(Eventos) para executar cada função****************************************
   // Para teste: Simula um evento a cada 2 segundos para cada barra
-  static uint32_t tempoAnterior = millis();
-  static bool turn = false;
+  /*static uint32_t tempoAnterior = millis();
+  static bool turn = false;*/
 
-  if (millis() - tempoAnterior >= 1000/*Tempo apenas*/)//Se (condição, no caso intervalo de tempo)
-  {                                   /*para teste  */
-    tempoAnterior = millis(); //Atualisa tempo anterior
+  if (botaoAnterior == HIGH && botaoAtual == LOW/*millis() - tempoAnterior >= 1000*/ /*Tempo apenas*/)//Se (condição, no caso intervalo de tempo)
+  {                                                                                  /*para teste  */
+    /*tempoAnterior = millis();*/ //Atualisa tempo anterior
 
 
 //******************************Trecho principal*********************************************************
@@ -121,6 +128,7 @@ void loop()
     turn = !turn; //Inverte vez*/
 //*****************************************************************************************************
   }
+  botaoAnterior = botaoAtual;
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 //!                           Falta implementar Condicional pra cada função removeVida.
