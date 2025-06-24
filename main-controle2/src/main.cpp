@@ -20,6 +20,8 @@ const char *mqtt_id = "esp32-senai134-magicduelcontrole2";
 const char *mqtt_topic_sub = "senai134/magicduel/console";
 const char *mqtt_topic_pub = "senai134/magicduel/controles";
 
+#define pinled 27
+
 void callback(char *, byte *, unsigned int);
 void mqttConnect(void);
 
@@ -68,6 +70,7 @@ void setup()
   Serial.begin(9600);
   dht.begin();
   lcd.init();
+  pinMode(pinled, OUTPUT);
 
   botaoA.attach(2, INPUT_PULLUP);
   botaoB.attach(4, INPUT_PULLUP);
@@ -170,6 +173,7 @@ void tratamentoMsg(String msg)
 
 void telaSelecao() // tela 0
 {
+  digitalWrite(pinled, 0);
   lcd.clear();
   lcd.backlight();
   lcd.setCursor(0, 0);
@@ -350,6 +354,7 @@ void telaInteracao() // tela 2
   {
     if (interacao == 1)
     {
+      digitalWrite(pinled,1);
       telas = 2;
 
       lcd.clear();
